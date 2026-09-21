@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #0b0f1a;
+  color: #f1f5f9;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.blink { animation: blink 1.4s ease-in-out infinite; }
+
+@keyframes slide-in {
+  from { transform: translateX(110%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.slide-in { animation: slide-in 0.35s ease-out forwards; }
+
+
+/* Bottom dashboard additions */
+.risk-map {
+  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 40%, #e0f2fe 100%);
+}
+.map-grid {
+  opacity: .45;
+  background-image: linear-gradient(25deg, transparent 47%, rgba(71,85,105,.18) 48%, rgba(71,85,105,.18) 50%, transparent 51%), linear-gradient(115deg, transparent 46%, rgba(71,85,105,.16) 47%, rgba(71,85,105,.16) 49%, transparent 50%), linear-gradient(90deg, rgba(100,116,139,.12) 1px, transparent 1px), linear-gradient(rgba(100,116,139,.12) 1px, transparent 1px);
+  background-size: 160px 120px, 180px 140px, 42px 42px, 42px 42px;
+}
+.map-road { position:absolute; background:rgba(255,255,255,.8); border:1px solid rgba(148,163,184,.35); transform-origin:center; }
+.road-a { width:120%; height:12px; left:-10%; top:52%; transform:rotate(-18deg); }
+.road-b { width:110%; height:9px; left:-5%; top:35%; transform:rotate(28deg); }
+.risk-zone { position:absolute; filter: saturate(.9); opacity:.7; }
+.zone-green { width:35%; height:55%; left:4%; top:28%; background:#4ade80; clip-path:polygon(10% 10%, 80% 0, 100% 42%, 76% 92%, 25% 100%, 0 55%); }
+.zone-yellow { width:38%; height:60%; left:31%; top:21%; background:#facc15; clip-path:polygon(12% 0, 90% 15%, 100% 70%, 65% 100%, 8% 82%, 0 30%); }
+.zone-red { width:34%; height:54%; left:57%; top:29%; background:#ef4444; clip-path:polygon(15% 4%, 88% 0, 100% 48%, 78% 100%, 22% 88%, 0 35%); }
+.map-control { width:32px; height:32px; border-radius:9px; background:rgba(255,255,255,.95); color:#334155; font-weight:700; box-shadow:0 2px 8px rgba(15,23,42,.2); }
+@media (max-width: 640px) { .risk-map { height:220px; } }
