@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { detectUserLocation, fetchKelurahan, fetchOpenMeteo, fetchTma, fetchNearbyKelurahan, type WeatherData, type UserLocation, type NearbyKelurahan } from "./weather";
-import {
-  Pengguna, Perangkat, LanggananNotifikasi, Notifikasi, Wilayah, DataCuaca, AmbangRisiko, LevelRisiko, Rekomendasi, PersiapanDini, InformasiModel,
-} from './uml';
+import { fetchOpenMeteo, fetchTma, type WeatherData } from "./weather";
 import {
   BarChart,
   Bar,
@@ -14,7 +11,13 @@ import {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-
+const WILAYAH = [
+  "Kelurahan Wirobrajan",
+  "Kelurahan Bausasran",
+  "Kelurahan Gowongan",
+  "Kelurahan Prawirodirjan",
+  "Kelurahan Suryatmajan",
+];
 
 const PREPARATION: Record<string, { checks: string[]; shelters: { nama: string; kapasitas: string; jarak: string }[] }> = {
   "Risiko Rendah": {
@@ -133,58 +136,21 @@ export default function App() {
   });
   const [time, setTime] = useState(new Date());
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
-  const [kelurahan, setKelurahan] = useState("Mendeteksi lokasi...");
-  const [nearbyKelurahan, setNearbyKelurahan] = useState<NearbyKelurahan[]>([]);
   const [tma, setTma] = useState<{ station: string; tma: number; unit: string; observedAt: string | null; source: string } | null>(null);
   const [dataError, setDataError] = useState("");
-  const [riskLevel, setRiskLevel] = useState("Aman");
-  const [riskScore, setRiskScore] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Objek domain mengikuti Class Diagram UML. React hanya menjadi lapisan UI.
-  const pengguna = useRef(new Pengguna("USR-001")).current;
-  const perangkat = useRef(new Perangkat("DEV-001", "Browser", navigator.userAgent, "")).current;
-  const langganan = useRef(new LanggananNotifikasi("SUB-001")).current;
-  const domainNotif = useRef(new Notifikasi("NOTIF-001", langganan.idLangganan, "", "")).current;
-  const domainCuaca = useRef(new DataCuaca("CUACA-001", "AUTO")).current;
-  const levelRisiko = useRef(new LevelRisiko("RISK-001")).current;
-
-  const loadData = async () => {
-    try {
-      setDataError("");
-      const location = await detectUserLocation();
-      setUserLocation(location);
-
-      // Data utama tidak bergantung pada TMA. Jika sumber TMA gagal,
-      // aplikasi tetap menampilkan data cuaca tanpa membuat nilai TMA palsu.
-      const [weatherData, wilayah, nearby] = await Promise.all([
-        domainCuaca.ambilDataDariAPI(location.latitude, location.longitude),
-        fetchKelurahan(location.latitude, location.longitude),
-        fetchNearbyKelurahan(location.latitude, location.longitude),
-      ]);
-
-      pengguna.aturLokasi(wilayah);
-      domainCuaca.simpanData(weatherData);
-      levelRisiko.hitungLevelRisiko(domainCuaca);
-      setRiskLevel(levelRisiko.lihatRisiko());
-      setRiskScore(levelRisiko.skorRisiko);
-      setWeather(weatherData);
-      setKelurahan(wilayah);
-      setNearbyKelurahan(nearby);
-
-      try {
-        const tmaData = await fetchTma();
-        setTma(tmaData);
-      } catch {
-        setTma(null);
-      }
-    } catch (error) {
-      setDataError(error instanceof Error ? error.message : "Gagal mengambil data");
-    }
-  };
-
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [weatherData, tmaData] = await Promise.all([fetchOpenMeteo(), fetchTma()]);
+        setWeather(weatherData);
+        setTma(tmaData);
+        setDataError("");
+      } catch (error) {
+        setDataError(error instanceof Error ? error.message : "Gagal mengambil data");
+      }
+    };
     loadData();
     const t = setInterval(() => {
       setTime(new Date());
@@ -228,8 +194,8 @@ export default function App() {
   // Indikator risiko otomatis berdasarkan data Open-Meteo pada titik dashboard.
   // Ini adalah indikator aplikasi, bukan status resmi BPBD/BBWS.
   const rainProb = weather?.current.precipitationProbability ?? 0;
-  const riskPct = riskScore || Math.min(95, Math.round(Math.min(100, currentRain * 8 + peakRain * 1.2 + rainProb * 0.25)));
-  const riskLabel = riskLevel || "Aman";
+  const riskPct = Math.min(95, Math.round(Math.min(100, currentRain * 8 + peakRain * 1.2 + rainProb * 0.25)));
+  const riskLabel = riskPct >= 70 ? "Bahaya" : riskPct >= 45 ? "Siaga" : riskPct >= 20 ? "Waspada" : "Aman";
   const riskBg = riskLabel === "Bahaya" ? "#7f1d1d" : riskLabel === "Siaga" ? "#78350f" : riskLabel === "Waspada" ? "#1e3a8a" : "#064e3b";
   const riskColor = riskLabel === "Bahaya" ? "#fca5a5" : riskLabel === "Siaga" ? "#fbbf24" : riskLabel === "Waspada" ? "#93c5fd" : "#6ee7b7";
 
@@ -249,17 +215,10 @@ export default function App() {
     const message = `Open-Meteo: hujan saat ini ${currentRain.toFixed(1)} mm, probabilitas ${Math.round(rainProb)}%, dan puncak prakiraan 12 jam ${peakText}.`;
     const signature = `${riskLabel}|${currentRain.toFixed(1)}|${Math.round(rainProb)}|${peakRain.toFixed(1)}`;
 
-    pengguna.aturNotifikasi(true)
-    langganan.aktifkan()
-    domainNotif.judul = title
-    domainNotif.pesan = message
-    domainNotif.waktuKirim = new Date()
-    domainNotif.buatNotifikasi()
     setNotifs(prev => {
       const latest = prev[0];
       if (latest?.signature === signature) return prev;
       const item = { id: Date.now(), level: riskLabel, judul: title, pesan: message, waktu: nowLabel, dibaca: false, signature };
-      domainNotif.kirimNotifikasi()
       return [item, ...prev].slice(0, 20);
     });
   }, [weather, riskLabel, currentRain, rainProb, peakRain, notifSettings.bahaya, notifSettings.siaga]);
@@ -277,7 +236,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.07)", color: "#cbd5e1" }}>
             <span>📍</span>
-            <span>{kelurahan}</span>
+            <span>Yogyakarta, DIY</span>
           </div>
           <div className="relative" ref={panelRef}>
             <button
@@ -400,24 +359,21 @@ export default function App() {
         <div>
           <p className="font-semibold mb-3">Status wilayah terdampak</p>
           <div className="rounded-2xl overflow-hidden" style={{ background: "#161d2e" }}>
-            <div className="px-5 py-4">
-              {nearbyKelurahan.length > 0 ? nearbyKelurahan.map((wilayah, index) => (
-                <div key={`${wilayah.name}-${index}`} className="py-3 border-t border-slate-800 first:border-t-0 flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold block truncate">{wilayah.name}</span>
-                  <span
-                    className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0"
-                    style={{
-                      background: wilayah.risk === "Bahaya" ? "rgba(239,68,68,0.16)" : wilayah.risk === "Siaga" ? "rgba(245,158,11,0.16)" : wilayah.risk === "Waspada" ? "rgba(96,165,250,0.16)" : "rgba(52,211,153,0.14)",
-                      color: wilayah.risk === "Bahaya" ? "#fca5a5" : wilayah.risk === "Siaga" ? "#fbbf24" : wilayah.risk === "Waspada" ? "#93c5fd" : "#6ee7b7",
-                    }}
-                  >
-                    {wilayah.risk}
-                  </span>
+            {WILAYAH.map((nama, i) => (
+              <div
+                key={nama}
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}
+              >
+                <div className="min-w-0">
+                  <span className="text-sm">{nama}</span>
+                  <p className="text-[10px] mt-0.5" style={{ color: "#475569" }}>Indikator otomatis dari data cuaca titik dashboard</p>
                 </div>
-              )) : (
-                <div className="py-4 text-sm" style={{ color: "#64748b" }}>{kelurahan}</div>
-              )}
-            </div>
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusPill(riskLabel)}`}>
+                  {riskLabel}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
